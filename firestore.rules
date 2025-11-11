@@ -1,0 +1,33 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Chats collection: only buyer or seller may read/write the chat and its messages
+    match /chats/{chatId} {
+      allow read, write: if isParticipant(chatId);
+
+      match /messages/{messageId} {
+        allow read, create, update: if isParticipant(chatId);
+        allow delete: if false; // no deletes from clients
+      }
+    }
+
+    // Users collection - basic public info
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    function isParticipant(chatId) {
+      return request.auth != null && (
+        resource.data.sellerId == request.auth.uid ||
+        resource.data.buyerId == request.auth.uid ||
+        // on create resource doesn't exist yet, fall back to incoming data
+        (request.resource != null && (
+          request.resource.data.sellerId == request.auth.uid ||
+          request.resource.data.buyerId == request.auth.uid
+        ))
+      );
+    }
+  }
+}
