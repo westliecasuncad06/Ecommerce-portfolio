@@ -71,8 +71,69 @@ class ChatService {
       updatedAt: now,
     );
 
+    // include participants array in document for efficient querying
     await doc.set(chat.toMap());
     return chat;
+  }
+
+  // Parse chatId of the form "chat_<sellerId>_<buyerId>"
+  ({String sellerId, String buyerId}) parseChatId(String chatId) {
+    final parts = chatId.split('_');
+    if (parts.length >= 3 && parts[0] == 'chat') {
+      return (sellerId: parts[1], buyerId: parts[2]);
+    }
+    // Fallback: cannot parse; return empty strings
+    return (sellerId: '', buyerId: '');
+  }
+
+  // Ensure chat document exists before writing messages (helps when messages are sent from deep links)
+  Future<void> _ensureChatExists(String chatId) async {
+    final doc = chatDocRef(chatId);
+    final snap = await doc.get();
+    if (snap.exists) return;
+    final parts = parseChatId(chatId);
+    final now = Timestamp.now();
+    await doc.set({
+      'sellerId': parts.sellerId,
+      'buyerId': parts.buyerId,
+      'participants': [parts.sellerId, parts.buyerId],
+      'lastMessage': '',
+      'lastMessageTime': now,
+      'lastSenderId': null,
+      'createdAt': now,
+      'updatedAt': now,
+    }, SetOptions(merge: true));
+  }
+
+  /// Backfill missing `participants` arrays for existing chat documents.
+  /// Returns number of documents updated.
+  Future<int> backfillParticipants() async {
+    // Firestore cannot query for missing field reliably; fetch all docs
+    final all = await chatsRef.get();
+    if (all.docs.isEmpty) return 0;
+    final batch = firestore.batch();
+    var updated = 0;
+    for (final d in all.docs) {
+      final data = d.data() as Map<String, dynamic>? ?? {};
+      if (data.containsKey('participants') && data['participants'] != null) {
+        continue; // already migrated
+      }
+      final seller = data['sellerId'] as String? ?? '';
+      final buyer = data['buyerId'] as String? ?? '';
+      final participants = [if (seller.isNotEmpty) seller, if (buyer.isNotEmpty) buyer];
+      if (participants.isEmpty) continue;
+      batch.update(d.reference, {'participants': participants});
+      updated++;
+    }
+    if (updated == 0) return 0;
+    await batch.commit();
+    return updated;
+  }
+
+  /// Convenience: run backfill and return whether any changes were made.
+  Future<bool> migrateChatsParticipants() async {
+    final count = await backfillParticipants();
+    return count > 0;
   }
 
   Stream<List<MessageModel>> streamMessages(String chatId) {
@@ -91,27 +152,16 @@ class ChatService {
   }
 
   Stream<List<ChatModel>> streamChatsForUser(String uid) {
-    // user may be seller or buyer
-    final sellerQuery = chatsRef.where('sellerId', isEqualTo: uid);
-    final buyerQuery = chatsRef.where('buyerId', isEqualTo: uid);
-
-    // combine via snapshots of two queries is left as an exercise for scale; here we'll merge streams
-    final s1 = sellerQuery.orderBy('lastMessageTime', descending: true).snapshots();
-    final s2 = buyerQuery.orderBy('lastMessageTime', descending: true).snapshots();
-
-    return StreamZip([s1, s2]).map((list) {
-      final allDocs = <DocumentSnapshot>[];
-      for (final snap in list) {
-        allDocs.addAll(snap.docs);
-      }
-      final chats = allDocs
-          .map((d) => ChatModel.fromDoc(d))
-          .toList()
-        ..sort((a, b) {
-          final ta = a.lastMessageTime?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
-          final tb = b.lastMessageTime?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
-          return tb.compareTo(ta);
-        });
+    // Use participants arrayContains. Avoid server-side orderBy to prevent
+    // composite index requirement (arrayContains + orderBy needs an index).
+    final q = chatsRef.where('participants', arrayContains: uid);
+    return q.snapshots().map((snap) {
+      final chats = snap.docs.map((d) => ChatModel.fromDoc(d)).toList();
+      chats.sort((a, b) {
+        final ta = a.lastMessageTime?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final tb = b.lastMessageTime?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return tb.compareTo(ta); // newest first
+      });
       return chats;
     });
   }
@@ -176,6 +226,7 @@ class ChatService {
     required String toId,
     required String text,
   }) async {
+    await _ensureChatExists(chatId);
     final now = Timestamp.now();
     final msgRef = messagesRef(chatId).doc();
     final msg = MessageModel(
@@ -210,6 +261,7 @@ class ChatService {
     XFile? pickedFile,
   }) async {
     if (pickedFile == null) return;
+    await _ensureChatExists(chatId);
     final now = Timestamp.now();
     final file = File(pickedFile.path);
     final ref = storage.ref().child('chat_images/$chatId/${DateTime.now().millisecondsSinceEpoch}.jpg');
@@ -233,6 +285,46 @@ class ChatService {
     batch.set(msgRef, msg.toMap());
     batch.update(chatRef, {
       'lastMessage': '[Image]',
+      'lastMessageTime': now,
+      'lastSenderId': fromId,
+      'updatedAt': now,
+    });
+    await batch.commit();
+  }
+
+  Future<void> sendProductMessage({
+    required String chatId,
+    required String fromId,
+    required String toId,
+    required String productId,
+    required String title,
+    String? imageUrl,
+    num? price,
+  }) async {
+    await _ensureChatExists(chatId);
+    final now = Timestamp.now();
+    final msgRef = messagesRef(chatId).doc();
+    final msg = MessageModel(
+      id: msgRef.id,
+      fromId: fromId,
+      toId: toId,
+      text: title,
+      sentAt: now,
+      messageType: MessageType.product,
+      isRead: false,
+      meta: {
+        'productId': productId,
+        'title': title,
+        if (imageUrl != null) 'image': imageUrl,
+        if (price != null) 'price': price,
+      },
+    );
+
+    final chatRef = chatDocRef(chatId);
+    final batch = firestore.batch();
+    batch.set(msgRef, msg.toMap());
+    batch.update(chatRef, {
+      'lastMessage': '[Product] $title',
       'lastMessageTime': now,
       'lastSenderId': fromId,
       'updatedAt': now,

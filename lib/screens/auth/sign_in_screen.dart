@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fb;
 import '../../providers/auth_providers.dart';
 
 class SignInScreen extends ConsumerStatefulWidget {
@@ -15,6 +16,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   final _passwordController = TextEditingController();
   bool _loading = false;
   bool _isLogin = true;
+  String? _error;
 
   @override
   void dispose() {
@@ -25,7 +27,10 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     final auth = ref.read(authControllerProvider);
     try {
       if (_isLogin) {
@@ -39,11 +44,73 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
           _passwordController.text.trim(),
         );
       }
+    } on fb.FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      // Map Firebase error codes to friendly messages
+      String friendly;
+      switch (e.code) {
+        case 'invalid-email':
+          friendly = 'The email address is not valid.';
+          break;
+        case 'user-disabled':
+          friendly = 'This account has been disabled.';
+          break;
+        case 'user-not-found':
+          friendly = 'No account found for that email.';
+          break;
+        case 'wrong-password':
+          friendly = 'Incorrect password. Try again.';
+          break;
+        case 'email-already-in-use':
+          friendly = 'This email is already registered.';
+          break;
+        case 'network-request-failed':
+          friendly = 'Network error. Check your connection.';
+          break;
+        default:
+          friendly = e.message ?? e.code;
+      }
+
+      // For sign-up, offer reset/sign-in via dialog when appropriate
+      if (!_isLogin && e.code == 'email-already-in-use') {
+        // Show dialog offering sign-in or reset
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Email already in use'),
+            content: const Text('This email is already registered. Would you like to sign in or reset your password?'),
+            actions: [
+              TextButton(onPressed: () { Navigator.of(ctx).pop(); }, child: const Text('Cancel')),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  setState(() => _isLogin = true);
+                },
+                child: const Text('Sign In'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  Navigator.of(ctx).pop();
+                  try {
+                    await auth.sendPasswordResetEmail(_emailController.text.trim());
+                    if (!mounted) return;
+                    setState(() => _error = 'Password reset email sent.');
+                  } catch (err) {
+                    if (!mounted) return;
+                    setState(() => _error = 'Reset failed: $err');
+                  }
+                },
+                child: const Text('Reset Password'),
+              ),
+            ],
+          ),
+        );
+      } else {
+        setState(() => _error = friendly);
+      }
     } catch (e) {
       if (!mounted) return; // guard against using context after dispose
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Auth error: $e')));
+      setState(() => _error = 'Auth error: $e');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -113,6 +180,10 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                             : 'Have an account? Sign In',
                       ),
                     ),
+                    if (_error != null) ...[
+                      const SizedBox(height: 12),
+                      Text(_error!, style: const TextStyle(color: Colors.red)),
+                    ],
                   ],
                 ),
               ),

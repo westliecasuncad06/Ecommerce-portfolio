@@ -23,6 +23,7 @@ class ChatModel {
 
   Map<String, dynamic> toMap() => {
         'sellerId': sellerId,
+    'participants': [sellerId, buyerId],
         'buyerId': buyerId,
         'lastMessage': lastMessage,
         'lastMessageTime': lastMessageTime,

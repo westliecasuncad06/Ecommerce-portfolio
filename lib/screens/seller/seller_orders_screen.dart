@@ -3,9 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/order_model.dart';
 import '../../providers/app_providers.dart';
 import '../../providers/auth_providers.dart';
+import '../chat/chat_screen.dart';
 
 class SellerOrdersScreen extends ConsumerWidget {
-  const SellerOrdersScreen({Key? key}) : super(key: key);
+  const SellerOrdersScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -95,6 +96,32 @@ class SellerOrdersScreen extends ConsumerWidget {
                     }
                   },
                   child: const Text('Add Tracking'),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.chat_bubble_outline),
+                  label: const Text('Message Buyer'),
+                  onPressed: () async {
+                    final fbUser = ref.read(firebaseAuthProvider).currentUser;
+                    if (fbUser == null) return;
+                    final sellerId = fbUser.uid;
+                    final buyerId = o.userId;
+                    final chat = await ref.read(chatServiceProvider).createOrGetChat(
+                          sellerId: sellerId,
+                          buyerId: buyerId,
+                        );
+                    if (!context.mounted) return;
+                    Navigator.of(context).pop();
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => ChatScreen(
+                          chatId: chat.id,
+                          sellerId: chat.sellerId,
+                          buyerId: chat.buyerId,
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ],
             )

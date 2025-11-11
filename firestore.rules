@@ -4,11 +4,14 @@ service cloud.firestore {
 
     // Chats collection: only buyer or seller may read/write the chat and its messages
     match /chats/{chatId} {
-      allow read, write: if isParticipant(chatId);
+      allow read, write: if isChatParticipant(chatId);
 
+      // Messages subcollection: validate access using parent chat document
       match /messages/{messageId} {
-        allow read, create, update: if isParticipant(chatId);
-        allow delete: if false; // no deletes from clients
+        allow read: if isChatParticipant(chatId);
+        allow create: if isChatParticipant(chatId) && validMessage(request.resource.data);
+        allow update: if isChatParticipant(chatId) && validMessage(request.resource.data);
+        allow delete: if false; // prevent client-side deletes
       }
     }
 
@@ -18,16 +21,31 @@ service cloud.firestore {
       allow write: if request.auth != null && request.auth.uid == userId;
     }
 
-    function isParticipant(chatId) {
+    // Helper: check that the authenticated user is a participant via participants array
+    function isChatParticipant(chatId) {
       return request.auth != null && (
-        resource.data.sellerId == request.auth.uid ||
-        resource.data.buyerId == request.auth.uid ||
-        // on create resource doesn't exist yet, fall back to incoming data
+        // if the chat doc already exists, check participants array
+        (exists(/databases/$(database)/documents/chats/$(chatId)) &&
+          get(/databases/$(database)/documents/chats/$(chatId)).data.participants is list &&
+          (request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants))
+        ||
+        // allow creation of the chat doc itself when supplying sellerId/buyerId or participants
         (request.resource != null && (
           request.resource.data.sellerId == request.auth.uid ||
-          request.resource.data.buyerId == request.auth.uid
+          request.resource.data.buyerId == request.auth.uid ||
+          (request.resource.data.participants is list && request.auth.uid in request.resource.data.participants)
         ))
       );
+    }
+
+    // Basic validation for message documents
+    function validMessage(data) {
+      return data.fromId is string &&
+             data.toId is string &&
+             data.text is string &&
+             data.messageType is string &&
+             // enforce allowed message types
+             (data.messageType in ['text','image','product']);
     }
   }
 }

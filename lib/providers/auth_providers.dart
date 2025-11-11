@@ -81,6 +81,11 @@ class AuthController {
     return cred;
   }
 
+  /// Send a password reset email to the given address.
+  Future<void> sendPasswordResetEmail(String email) async {
+    await _auth.sendPasswordResetEmail(email: email);
+  }
+
   Future<void> ensureUserDocument(fb.User user) async {
     final doc = _db.collection('users').doc(user.uid);
     final snap = await doc.get();

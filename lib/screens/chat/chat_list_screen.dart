@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/chat_providers.dart';
 import '../../models/chat_model.dart';
@@ -13,10 +14,25 @@ class ChatListScreen extends ConsumerWidget {
     if (userId == null) {
       return const Scaffold(body: Center(child: Text('Please sign in to view chats')));
     }
-
+    final chatSvc = ref.read(chatServiceProvider);
+    
     final chatsAsync = ref.watch(chatsForUserProvider(userId));
     return Scaffold(
-      appBar: AppBar(title: const Text('Messages')),
+      appBar: AppBar(
+        title: const Text('Messages'),
+        actions: [
+          if (kDebugMode)
+            IconButton(
+              tooltip: 'Backfill participants (debug)',
+              icon: const Icon(Icons.build_circle_outlined),
+              onPressed: () async {
+                final n = await chatSvc.backfillParticipants();
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Backfilled $n chats')));
+              },
+            )
+        ],
+      ),
       body: chatsAsync.when(
         data: (chats) => ListView.builder(
           itemCount: chats.length,
