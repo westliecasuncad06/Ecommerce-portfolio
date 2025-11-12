@@ -104,8 +104,13 @@ class Product {
         'ratingCount': ratingCount,
         'views': views,
         'sold': sold,
-        'createdAt': Timestamp.fromDate(createdAt),
-        if (updatedAt != null) 'updatedAt': Timestamp.fromDate(updatedAt!),
-        'status': status,
+    'createdAt': Timestamp.fromDate(createdAt),
+    if (updatedAt != null) 'updatedAt': Timestamp.fromDate(updatedAt!),
+    // Keep a lightweight boolean indexable field for active products. The
+    // UI queries `.where('active', isEqualTo: true)` so set this to true
+    // when the product status is 'active'. This avoids missing newly
+    // created products that only had a 'status' string set.
+    'active': status == 'active',
+    'status': status,
       };
 }

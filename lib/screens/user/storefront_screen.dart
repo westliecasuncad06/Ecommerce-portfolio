@@ -30,10 +30,12 @@ class _StorefrontScreenState extends ConsumerState<StorefrontScreen> {
     final fbUser = ref.watch(firebaseAuthProvider).currentUser;
     final userId = fbUser?.uid ?? '';
 
+    final storeFuture = storeSvc.fetchStore(widget.sellerId);
+
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: FutureBuilder<StoreProfile?>(
-        future: storeSvc.fetchStore(widget.sellerId),
+        future: storeFuture,
         builder: (ctx, snap) {
           if (snap.connectionState != ConnectionState.done) {
             return const Center(child: CircularProgressIndicator());
@@ -49,6 +51,19 @@ class _StorefrontScreenState extends ConsumerState<StorefrontScreen> {
                 pinned: true,
                 elevation: 0,
                 backgroundColor: AppTheme.surface,
+                // If the current user is the store owner, show an edit action
+                actions: [
+                  if (userId.isNotEmpty && userId == widget.sellerId)
+                    IconButton(
+                      tooltip: 'Edit Store',
+                      icon: const Icon(Icons.edit_outlined),
+                      onPressed: () async {
+                        // Navigate to the existing store edit screen and refresh when returned
+                        await context.push('/seller/store');
+                        if (mounted) setState(() {});
+                      },
+                    ),
+                ],
                 flexibleSpace: FlexibleSpaceBar(
                   background: Container(
                     decoration: BoxDecoration(
@@ -327,6 +342,69 @@ class _StorefrontScreenState extends ConsumerState<StorefrontScreen> {
                 },
               ),
             ],
+          );
+        },
+      ),
+      // Bottom bar with quick actions. If the signed-in user is the store owner,
+      // show Edit and Manage actions. Otherwise show Message and Share.
+      bottomNavigationBar: FutureBuilder<StoreProfile?>(
+        future: storeFuture,
+        builder: (ctx, snap) {
+          if (snap.connectionState != ConnectionState.done) return const SizedBox.shrink();
+          final profile = snap.data;
+          final isOwner = userId.isNotEmpty && userId == widget.sellerId;
+
+          return BottomAppBar(
+            color: AppTheme.surface,
+            elevation: 8,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        if (isOwner) {
+                          await context.push('/seller/store');
+                          if (mounted) setState(() {});
+                        } else {
+                          // Message the seller
+                          context.push('/chat/${widget.sellerId}', extra: profile?.storeName);
+                        }
+                      },
+                      icon: Icon(isOwner ? Icons.edit : Icons.chat_bubble_outline),
+                      label: Text(isOwner ? 'Edit Store' : 'Message'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primary,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        if (isOwner) {
+                          // Navigate to seller products management
+                          context.push('/seller/products');
+                        } else {
+                          // Share the store link
+                          // For now, open the storefront route which can be shared externally
+                          // (Sharing implementation can be added later)
+                          final link = '/store/${widget.sellerId}';
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Share link: $link')));
+                        }
+                      },
+                      icon: Icon(isOwner ? Icons.storefront : Icons.share),
+                      label: Text(isOwner ? 'Manage Products' : 'Share'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           );
         },
       ),

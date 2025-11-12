@@ -59,23 +59,50 @@ class _SellerMessagesScreenState extends ConsumerState<SellerMessagesScreen> {
             itemBuilder: (context, index) {
               final ChatModel chat = chats[index];
               final otherId = chat.sellerId == fbUser.uid ? chat.buyerId : chat.sellerId;
-              return ListTile(
-                leading: CircleAvatar(child: Text(otherId.substring(0, 2).toUpperCase())),
-                title: Text('Chat with $otherId'),
-                subtitle: Text(chat.lastMessage.isEmpty ? 'Say hello' : chat.lastMessage,
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
-                trailing: chat.lastMessageTime != null
-                    ? Text(TimeOfDay.fromDateTime(chat.lastMessageTime!.toDate()).format(context))
-                    : null,
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => shared_chat.ChatScreen(
-                        chatId: chat.id,
-                        sellerId: chat.sellerId,
-                        buyerId: chat.buyerId,
-                      ),
+
+              return FutureBuilder(
+                future: ref.read(firestoreProvider).collection('users').doc(otherId).get(),
+                builder: (ctx, snap) {
+                  String titleText = otherId;
+                  String initials = otherId.length >= 2 ? otherId.substring(0, 2).toUpperCase() : otherId.toUpperCase();
+
+                  if (snap.connectionState == ConnectionState.done && snap.hasData) {
+                    final doc = snap.data as dynamic;
+                    final data = (doc.data() as Map<String, dynamic>?) ?? {};
+                    final displayName = data['displayName'] as String?;
+                    final email = data['email'] as String?;
+                    if (displayName != null && displayName.isNotEmpty) {
+                      titleText = displayName;
+                      final parts = displayName.split(RegExp(r'\s+'));
+                      initials = parts.map((p) => p.isNotEmpty ? p[0] : '').take(2).join().toUpperCase();
+                    } else if (email != null && email.isNotEmpty) {
+                      titleText = email;
+                      initials = email.length >= 2 ? email.substring(0, 2).toUpperCase() : email.toUpperCase();
+                    }
+                  }
+
+                  return ListTile(
+                    leading: CircleAvatar(child: Text(initials)),
+                    title: Text('Chat with $titleText'),
+                    subtitle: Text(
+                      chat.lastMessage.isEmpty ? 'Say hello' : chat.lastMessage,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
+                    trailing: chat.lastMessageTime != null
+                        ? Text(TimeOfDay.fromDateTime(chat.lastMessageTime!.toDate()).format(context))
+                        : null,
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => shared_chat.ChatScreen(
+                            chatId: chat.id,
+                            sellerId: chat.sellerId,
+                            buyerId: chat.buyerId,
+                          ),
+                        ),
+                      );
+                    },
                   );
                 },
               );

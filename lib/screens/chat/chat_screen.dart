@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../providers/chat_providers.dart';
+import '../../providers/app_providers.dart' as app_providers;
+import '../../providers/auth_providers.dart';
+import '../../models/store_profile.dart';
 import '../../models/message_model.dart';
 import '../../widgets/chat_bubble.dart';
 import '../../widgets/chat_input.dart';
@@ -51,8 +54,35 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       svc.markMessagesRead(chatId: widget.chatId, currentUserId: currentUserId);
     }
 
+    final otherId = widget.sellerId == currentUserId ? widget.buyerId : widget.sellerId;
+    final otherIsSeller = otherId == widget.sellerId;
+
     return Scaffold(
-      appBar: AppBar(title: Text('Chat')),
+      appBar: AppBar(
+        title: FutureBuilder<Object?>(
+      future: otherIsSeller
+        ? // fetch store profile when the other participant is a seller
+        ref.read(app_providers.storeServiceProvider).fetchStore(otherId)
+        : // fetch user doc when the other participant is a buyer/user
+        ref.read(firestoreProvider).collection('users').doc(otherId).get(),
+          builder: (ctx, snap) {
+            if (snap.connectionState == ConnectionState.waiting) return const Text('Chat');
+            if (snap.hasError) return const Text('Chat');
+            final data = snap.data;
+            if (otherIsSeller) {
+              final StoreProfile? store = data as StoreProfile?;
+              return Text(store?.storeName ?? 'Store');
+            } else {
+              // DocumentSnapshot
+              final doc = data as dynamic;
+              final m = (doc?.data() as Map<String, dynamic>?) ?? {};
+              final displayName = m['displayName'] as String?;
+              final email = m['email'] as String? ?? 'User';
+              return Text((displayName != null && displayName.isNotEmpty) ? displayName : email);
+            }
+          },
+        ),
+      ),
       body: Column(
         children: [
           Expanded(

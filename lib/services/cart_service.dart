@@ -54,4 +54,34 @@ class CartService {
   }
 
   Future<void> clear() => _doc.set({'items': []});
+
+  /// Persist a simple shipping address string on the cart document.
+  Future<void> setShippingAddress(String address) async {
+    final snap = await _doc.get();
+    final data = snap.exists ? (snap.data() as Map<String, dynamic>) : <String, dynamic>{};
+    data['shippingAddress'] = address;
+    await _doc.set(data, SetOptions(merge: true));
+  }
+
+  Future<String?> getShippingAddress() async {
+    final snap = await _doc.get();
+    if (!snap.exists) return null;
+    final data = snap.data() as Map<String, dynamic>;
+    return data['shippingAddress'] as String?;
+  }
+
+  /// Persist a selected payment method id/label on the cart document.
+  Future<void> setPaymentMethod(String method) async {
+    final snap = await _doc.get();
+    final data = snap.exists ? (snap.data() as Map<String, dynamic>) : <String, dynamic>{};
+    data['paymentMethod'] = method;
+    await _doc.set(data, SetOptions(merge: true));
+  }
+
+  Future<String?> getPaymentMethod() async {
+    final snap = await _doc.get();
+    if (!snap.exists) return null;
+    final data = snap.data() as Map<String, dynamic>;
+    return data['paymentMethod'] as String?;
+  }
 }

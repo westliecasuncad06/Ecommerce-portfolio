@@ -8,17 +8,38 @@ class OrderService {
 
   CollectionReference get _col => _db.collection('orders');
 
+  // Avoid requiring a composite index by not using server-side orderBy here.
+  // We fetch the user's orders and sort by createdAt client-side.
   Stream<List<AppOrder>> watchUserOrders(String userId) => _col
       .where('userId', isEqualTo: userId)
-      .orderBy('createdAt', descending: true)
       .snapshots()
-      .map((s) => s.docs.map(AppOrder.fromDoc).toList());
+      .map((s) {
+        final docs = s.docs.toList();
+        docs.sort((a, b) {
+          final ta = (a.data() as Map<String, dynamic>?)?['createdAt'];
+          final tb = (b.data() as Map<String, dynamic>?)?['createdAt'];
+          final da = ta is Timestamp ? ta.toDate() : DateTime.tryParse(ta?.toString() ?? '') ?? DateTime.now();
+          final db = tb is Timestamp ? tb.toDate() : DateTime.tryParse(tb?.toString() ?? '') ?? DateTime.now();
+          return db.compareTo(da);
+        });
+        return docs.map(AppOrder.fromDoc).toList();
+      });
 
+  // Same approach for seller orders to avoid composite index requirement.
   Stream<List<AppOrder>> watchSellerOrders(String sellerId) => _col
       .where('sellerId', isEqualTo: sellerId)
-      .orderBy('createdAt', descending: true)
       .snapshots()
-      .map((s) => s.docs.map(AppOrder.fromDoc).toList());
+      .map((s) {
+        final docs = s.docs.toList();
+        docs.sort((a, b) {
+          final ta = (a.data() as Map<String, dynamic>?)?['createdAt'];
+          final tb = (b.data() as Map<String, dynamic>?)?['createdAt'];
+          final da = ta is Timestamp ? ta.toDate() : DateTime.tryParse(ta?.toString() ?? '') ?? DateTime.now();
+          final db = tb is Timestamp ? tb.toDate() : DateTime.tryParse(tb?.toString() ?? '') ?? DateTime.now();
+          return db.compareTo(da);
+        });
+        return docs.map(AppOrder.fromDoc).toList();
+      });
 
   Stream<AppOrder?> watchOrderById(String orderId) => _col.doc(orderId).snapshots().map((d) {
         if (!d.exists) return null;

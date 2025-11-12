@@ -5,7 +5,8 @@ import '../../providers/app_providers.dart';
 import '../../providers/auth_providers.dart';
 
 class SellerEarningsScreen extends ConsumerWidget {
-  const SellerEarningsScreen({Key? key}) : super(key: key);
+  final bool showAppBar;
+  const SellerEarningsScreen({super.key, this.showAppBar = true});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -15,7 +16,7 @@ class SellerEarningsScreen extends ConsumerWidget {
     final svc = SellerEarningsService(ref.watch(dbProvider));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Earnings')),
+      appBar: showAppBar ? AppBar(title: const Text('Earnings')) : null,
       body: FutureBuilder<Map<String, dynamic>>(
         future: svc.fetchSummary(sellerId),
         builder: (ctx, snap) {

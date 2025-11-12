@@ -6,7 +6,8 @@ import '../../providers/auth_providers.dart';
 import '../chat/chat_screen.dart';
 
 class SellerOrdersScreen extends ConsumerWidget {
-  const SellerOrdersScreen({super.key});
+  final bool showAppBar;
+  const SellerOrdersScreen({super.key, this.showAppBar = true});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -16,7 +17,7 @@ class SellerOrdersScreen extends ConsumerWidget {
     final ordersAsync = ref.watch(sellerOrdersProvider(sellerId));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Orders')),
+      appBar: showAppBar ? AppBar(title: const Text('Orders')) : null,
       body: ordersAsync.when(
         data: (orders) {
           if (orders.isEmpty) return const Center(child: Text('No orders yet'));

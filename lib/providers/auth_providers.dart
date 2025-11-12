@@ -100,6 +100,38 @@ class AuthController {
       });
     }
   }
+
+  /// Update the current user's profile information.
+  /// Updates Firebase Auth profile (displayName and email) when provided
+  /// and keeps the Firestore `users/{uid}` document in sync.
+  Future<void> updateProfile({String? displayName, String? email}) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('Not signed in');
+
+    // Update Firebase Auth profile where possible
+    try {
+      if (displayName != null) {
+        await user.updateDisplayName(displayName);
+        // Refresh to ensure the currentUser reflects the new displayName
+        await user.reload();
+      }
+      // NOTE: updating auth email may require re-authentication and is
+      // intentionally not performed here. If you need to support changing
+      // email, implement a re-auth flow and then call `user.updateEmail`.
+    } catch (e) {
+      // Re-throw for caller to handle (UI will show error)
+      rethrow;
+    }
+
+    // Update Firestore document
+    final docRef = _db.collection('users').doc(user.uid);
+    final updateData = <String, dynamic>{};
+    if (displayName != null) updateData['displayName'] = displayName;
+    if (email != null) updateData['email'] = email;
+    if (updateData.isNotEmpty) {
+      await docRef.set(updateData, SetOptions(merge: true));
+    }
+  }
 }
 
 final authControllerProvider = Provider<AuthController>(

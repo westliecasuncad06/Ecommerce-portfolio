@@ -63,6 +63,12 @@ final unreadMessagesProvider = StreamProvider.family<int, String>((ref, sellerId
   return svc.watchUnread(sellerId);
 });
 
+// Unread messages provider for any user (buyer or seller)
+final unreadMessagesForUserProvider = StreamProvider.family<int, String>((ref, userId) {
+  final svc = ref.watch(chatServiceProvider);
+  return svc.watchUnreadForUser(userId);
+});
+
 // Data streams
 final productsProvider = StreamProvider<List<Product>>((ref) {
   return ref.watch(productServiceProvider).watchActiveProducts();

@@ -6,7 +6,8 @@ import '../../providers/app_providers.dart';
 import '../../providers/auth_providers.dart';
 
 class ManageProductsScreen extends ConsumerWidget {
-  const ManageProductsScreen({super.key});
+  final bool showAppBar;
+  const ManageProductsScreen({super.key, this.showAppBar = true});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -16,7 +17,7 @@ class ManageProductsScreen extends ConsumerWidget {
       data: (list) {
         final myProducts = list.where((p) => p.sellerId == uid).toList();
         return Scaffold(
-          appBar: AppBar(title: const Text('My Products')),
+          appBar: showAppBar ? AppBar(title: const Text('Products')) : null,
           body: myProducts.isEmpty
               ? Center(
                   child: Padding(
@@ -98,7 +99,7 @@ class ManageProductsScreen extends ConsumerWidget {
         );
       },
       loading: () => Scaffold(
-        appBar: AppBar(title: const Text('My Products')),
+        appBar: showAppBar ? AppBar(title: const Text('Products')) : null,
         body: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -116,7 +117,7 @@ class ManageProductsScreen extends ConsumerWidget {
         ),
       ),
       error: (e, st) => Scaffold(
-        appBar: AppBar(title: const Text('My Products')),
+        appBar: showAppBar ? AppBar(title: const Text('Products')) : null,
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(16.0),

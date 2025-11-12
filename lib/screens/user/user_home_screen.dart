@@ -6,9 +6,12 @@ import 'package:shimmer/shimmer.dart';
 import '../../models/cart_item.dart';
 import '../../providers/auth_providers.dart';
 import '../../providers/app_providers.dart';
+import '../chat/chat_list_screen.dart';
 import '../../models/app_user.dart';
 import '../../core/cart_badge.dart';
 import '../../core/theme.dart';
+import 'edit_profile_screen.dart';
+import 'checkout_confirmation_screen.dart';
 
 class UserHomeScreen extends ConsumerStatefulWidget {
   const UserHomeScreen({super.key});
@@ -151,6 +154,55 @@ class _ShopPageState extends State<_ShopPage> {
             backgroundColor: AppTheme.surface,
             title: Text('Discover', style: Theme.of(context).textTheme.headlineMedium),
             actions: [
+              // Messages button with unread badge for signed-in users
+              Builder(builder: (ctx) {
+                final fbUser = ref.watch(firebaseAuthProvider).currentUser;
+                if (fbUser == null) {
+                  return const SizedBox.shrink();
+                }
+                final unread = ref.watch(unreadMessagesForUserProvider(fbUser.uid));
+                return unread.when(
+                  data: (count) {
+                    return IconButton(
+                      tooltip: 'Messages',
+                      onPressed: () {
+                        // Open chat list
+                        Navigator.of(ctx).push(MaterialPageRoute(builder: (_) => const ChatListScreen()));
+                      },
+                      icon: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          const Icon(Icons.message_outlined),
+                          if (count > 0)
+                            Positioned(
+                              right: -6,
+                              top: -6,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                                constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+                                child: Center(
+                                  child: Text(
+                                    count > 99 ? '99+' : '$count',
+                                    style: const TextStyle(color: Colors.white, fontSize: 10),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    );
+                  },
+                  loading: () => IconButton(
+                    tooltip: 'Messages',
+                    onPressed: () {
+                      Navigator.of(ctx).push(MaterialPageRoute(builder: (_) => const ChatListScreen()));
+                    },
+                    icon: const Icon(Icons.message_outlined),
+                  ),
+                  error: (_, __) => const SizedBox.shrink(),
+                );
+              }),
               IconButton(
                 tooltip: 'Notifications',
                 icon: const Icon(Icons.notifications_outlined),
@@ -851,56 +903,16 @@ class _CartPage extends StatelessWidget {
                                       height: 50,
                                       child: ElevatedButton.icon(
                                         onPressed: items.isEmpty
-                                            ? null
-                                            : () async {
-                                                final user = ref.read(firebaseAuthProvider).currentUser;
-                                                if (user == null) return;
-                                                
-                                                // Show loading
-                                                if (context.mounted) {
-                                                  showDialog(
-                                                    context: context,
-                                                    barrierDismissible: false,
-                                                    builder: (ctx) => const Center(
-                                                      child: CircularProgressIndicator(),
+                                              ? null
+                                              : () async {
+                                                  // Navigate to confirmation screen first
+                                                  if (!context.mounted) return;
+                                                  Navigator.of(context).push(
+                                                    MaterialPageRoute(
+                                                      builder: (_) => CheckoutConfirmationScreen(items: items, total: total),
                                                     ),
                                                   );
-                                                }
-                                                
-                                                try {
-                                                  final sellerId = 'demo-seller';
-                                                  final orderId = await ref
-                                                      .read(orderServiceProvider)
-                                                      .checkout(
-                                                        userId: user.uid,
-                                                        sellerId: sellerId,
-                                                        items: items,
-                                                        shippingAddress: 'Sample address',
-                                                      );
-                                                  await svc?.clear();
-                                                  
-                                                  if (context.mounted) {
-                                                    Navigator.pop(context); // Close loading
-                                                    ScaffoldMessenger.of(context).showSnackBar(
-                                                      SnackBar(
-                                                        content: Text('Order placed successfully! #${orderId.substring(0, 8)}'),
-                                                        backgroundColor: AppTheme.success,
-                                                        behavior: SnackBarBehavior.floating,
-                                                      ),
-                                                    );
-                                                  }
-                                                } catch (e) {
-                                                  if (context.mounted) {
-                                                    Navigator.pop(context); // Close loading
-                                                    ScaffoldMessenger.of(context).showSnackBar(
-                                                      SnackBar(
-                                                        content: Text('Error: $e'),
-                                                        backgroundColor: AppTheme.error,
-                                                      ),
-                                                    );
-                                                  }
-                                                }
-                                              },
+                                                },
                                         icon: const Icon(Icons.payment),
                                         label: Text(
                                           'Proceed to Checkout • \$${total.toStringAsFixed(2)}',
@@ -1539,7 +1551,7 @@ class _ProfilePage extends StatelessWidget {
                         icon: Icons.person_outline,
                         title: 'Edit Profile',
                         onTap: () {
-                          // TODO: Navigate to edit profile
+                          Navigator.of(context).push(MaterialPageRoute(builder: (_) => const EditProfileScreen()));
                         },
                       ),
                       _ProfileActionTile(

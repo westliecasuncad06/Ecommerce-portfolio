@@ -207,6 +207,24 @@ class ChatService {
     }
   }
 
+  /// Watch unread message count for any user (seller or buyer).
+  /// Computes total number of messages across all chats addressed to [userId]
+  /// where `isRead == false`.
+  Stream<int> watchUnreadForUser(String userId) async* {
+    await for (final snap in chatsRef.where('participants', arrayContains: userId).snapshots()) {
+      var total = 0;
+      for (final doc in snap.docs) {
+        final chatId = doc.id;
+        final q = await messagesRef(chatId)
+            .where('toId', isEqualTo: userId)
+            .where('isRead', isEqualTo: false)
+            .get();
+        total += q.size;
+      }
+      yield total;
+    }
+  }
+
   /// Clear unread messages counter by marking messages as read for seller
   Future<void> clearUnread(String sellerId) async {
     final snap = await chatsRef.where('sellerId', isEqualTo: sellerId).get();

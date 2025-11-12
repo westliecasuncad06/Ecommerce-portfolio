@@ -8,7 +8,7 @@ import '../screens/splash_screen.dart';
 import '../screens/auth/sign_in_screen.dart';
 import '../screens/user/user_home_screen.dart';
 import '../screens/user/product_detail_screen.dart';
-import '../screens/seller/seller_dashboard_screen.dart';
+import '../screens/seller/seller_shell.dart';
 import '../screens/seller/manage_products_screen.dart';
 import '../screens/seller/edit_product_screen.dart';
 import '../screens/seller/seller_orders_screen.dart';
@@ -55,7 +55,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         name: 'sellerHome',
         path: '/seller',
-        builder: (_, __) => const SellerDashboardScreen(),
+        builder: (_, __) => const SellerShell(),
       ),
       GoRoute(
         name: 'sellerOrders',

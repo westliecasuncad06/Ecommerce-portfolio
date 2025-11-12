@@ -9,7 +9,8 @@ import '../../models/product.dart';
 import '../../core/theme.dart';
 
 class SellerDashboardScreen extends ConsumerWidget {
-  const SellerDashboardScreen({super.key});
+  final bool showAppBar;
+  const SellerDashboardScreen({super.key, this.showAppBar = true});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -39,78 +40,79 @@ class SellerDashboardScreen extends ConsumerWidget {
       backgroundColor: AppTheme.background,
       body: CustomScrollView(
         slivers: [
-          // Modern App Bar
-          SliverAppBar(
-            floating: true,
-            elevation: 0,
-            backgroundColor: AppTheme.surface,
-            title: Text(
-              'Seller Dashboard',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            actions: [
-              // Show unread messages badge for seller (use when to handle loading/error)
-              Consumer(
-                builder: (ctx, ref, child) {
-                  final unread = ref.watch(unreadMessagesProvider(sellerId));
-                  return unread.when(
-                    data: (count) {
-                      return IconButton(
-                        tooltip: 'Messages',
-                        icon: Stack(
-                          children: [
-                            const Icon(Icons.chat_bubble_outline),
-                            if (count > 0)
-                              Positioned(
-                                right: 0,
-                                top: 0,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(12)),
-                                  child: Text(
-                                    '$count',
-                                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+          // Conditionally show the app bar (when not embedded in a shell that provides one)
+          if (showAppBar)
+            SliverAppBar(
+              floating: true,
+              elevation: 0,
+              backgroundColor: AppTheme.surface,
+              title: Text(
+                'Seller Dashboard',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              actions: [
+                // Show unread messages badge for seller (use when to handle loading/error)
+                Consumer(
+                  builder: (ctx, ref, child) {
+                    final unread = ref.watch(unreadMessagesProvider(sellerId));
+                    return unread.when(
+                      data: (count) {
+                        return IconButton(
+                          tooltip: 'Messages',
+                          icon: Stack(
+                            children: [
+                              const Icon(Icons.chat_bubble_outline),
+                              if (count > 0)
+                                Positioned(
+                                  right: 0,
+                                  top: 0,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(12)),
+                                    child: Text(
+                                      '$count',
+                                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                    ),
                                   ),
                                 ),
-                              ),
-                          ],
-                        ),
+                            ],
+                          ),
+                          onPressed: () async {
+                            // Clear unread count when seller opens messages
+                            await ref.read(chatServiceProvider).clearUnread(sellerId);
+                            context.push('/seller/messages');
+                          },
+                        );
+                      },
+                      loading: () => IconButton(
+                        tooltip: 'Messages',
+                        icon: const Icon(Icons.chat_bubble_outline),
                         onPressed: () async {
-                          // Clear unread count when seller opens messages
                           await ref.read(chatServiceProvider).clearUnread(sellerId);
                           context.push('/seller/messages');
                         },
-                      );
-                    },
-                    loading: () => IconButton(
-                      tooltip: 'Messages',
-                      icon: const Icon(Icons.chat_bubble_outline),
-                      onPressed: () async {
-                        await ref.read(chatServiceProvider).clearUnread(sellerId);
-                        context.push('/seller/messages');
-                      },
-                    ),
-                    error: (e, st) => IconButton(
-                      tooltip: 'Messages',
-                      icon: const Icon(Icons.chat_bubble_outline),
-                      onPressed: () async {
-                        await ref.read(chatServiceProvider).clearUnread(sellerId);
-                        context.push('/seller/messages');
-                      },
-                    ),
-                  );
-                },
-              ),
-              IconButton(
-                tooltip: 'Logout',
-                icon: const Icon(Icons.logout_outlined),
-                onPressed: () async => await ref.read(authControllerProvider).signOut(),
-              ),
-              const SizedBox(width: 8),
-            ],
-          ),
+                      ),
+                      error: (e, st) => IconButton(
+                        tooltip: 'Messages',
+                        icon: const Icon(Icons.chat_bubble_outline),
+                        onPressed: () async {
+                          await ref.read(chatServiceProvider).clearUnread(sellerId);
+                          context.push('/seller/messages');
+                        },
+                      ),
+                    );
+                  },
+                ),
+                IconButton(
+                  tooltip: 'Logout',
+                  icon: const Icon(Icons.logout_outlined),
+                  onPressed: () async => await ref.read(authControllerProvider).signOut(),
+                ),
+                const SizedBox(width: 8),
+              ],
+            ),
 
           // Store Profile Banner
           SliverToBoxAdapter(
@@ -315,97 +317,7 @@ class SellerDashboardScreen extends ConsumerWidget {
 
           const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
-          // Quick Actions
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Quick Actions',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _QuickActionCard(
-                          title: 'Products',
-                          icon: Icons.inventory_2_outlined,
-                          color: AppTheme.primary,
-                          onTap: () => context.push('/seller/products'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _QuickActionCard(
-                          title: 'Orders',
-                          icon: Icons.shopping_bag_outlined,
-                          color: AppTheme.info,
-                          onTap: () => context.push('/seller/orders'),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _QuickActionCard(
-                          title: 'Earnings',
-                          icon: Icons.account_balance_wallet_outlined,
-                          color: AppTheme.success,
-                          onTap: () => context.push('/seller/earnings'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Consumer(
-                          builder: (ctx, ref, child) {
-                            final unread = ref.watch(unreadMessagesProvider(sellerId));
-                            return Stack(
-                              children: [
-                                _QuickActionCard(
-                                  title: 'Messages',
-                                  icon: Icons.chat_bubble_outline,
-                                  color: AppTheme.secondary,
-                                  onTap: () async {
-                                    await ref.read(chatServiceProvider).clearUnread(sellerId);
-                                    context.push('/seller/messages');
-                                  },
-                                ),
-                                unread.when(
-                                  data: (count) => count > 0
-                                      ? Positioned(
-                                          right: 12,
-                                          top: 8,
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                            decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(12)),
-                                            child: Text(
-                                              '$count',
-                                              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-                                            ),
-                                          ),
-                                        )
-                                      : const SizedBox.shrink(),
-                                  loading: () => const SizedBox.shrink(),
-                                  error: (_, __) => const SizedBox.shrink(),
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
+          // Quick Actions removed per design request
 
           const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
@@ -661,52 +573,7 @@ class _ModernStatCard extends StatelessWidget {
   }
 }
 
-// Quick Action Card Widget
-class _QuickActionCard extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _QuickActionCard({
-    required this.title,
-    required this.icon,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: color.withValues(alpha: 0.2),
-            width: 1.5,
-          ),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, size: 32, color: color),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: color,
-                  ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+// Quick actions removed — helper widget deleted
 
 // Dashboard Section Widget
 class _DashboardSection extends StatelessWidget {
